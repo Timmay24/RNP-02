@@ -13,7 +13,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
-import java.util.Scanner;
 
 public class TCPClient {
     /* Portnummer */
@@ -27,7 +26,7 @@ public class TCPClient {
     private DataOutputStream outToServer; // Ausgabestream zum Server
     private BufferedReader inFromServer; // Eingabestream vom Server
 
-    private boolean serviceRequested = true; // Client beenden?
+    private Thread userInputThread;
 
     public TCPClient(String hostname, int serverPort) {
         this.serverPort = serverPort;
@@ -35,11 +34,6 @@ public class TCPClient {
     }
 
     public void startJob() {
-        /* Client starten. Ende, wenn quit eingegeben wurde */
-        Scanner inFromUser;
-        String sentence; // vom User uebergebener String
-        String modifiedSentence; // vom Server modifizierter String
-
         try {
             /* Socket erzeugen --> Verbindungsaufbau mit dem Server */
             clientSocket = new Socket(hostname, serverPort);
@@ -49,34 +43,17 @@ public class TCPClient {
             inFromServer = new BufferedReader(new InputStreamReader(
                     clientSocket.getInputStream()));
 
-            /* Konsolenstream (Standardeingabe) initialisieren */
-            inFromUser = new Scanner(System.in);
-
             System.out.println("Bitte wählen Sie einen Nutzernamen mit /login <nickname> aus");
 
-            while (serviceRequested) {
-                /* String vom Benutzer (Konsoleneingabe) holen */
-                sentence = inFromUser.nextLine();
+            ClientThread clientThread = new ClientThread(this);
+            clientThread.start();
 
-                /* String an den Server senden */
-                writeToServer(sentence);
+            userInputThread = new UserInput();
+            userInputThread.start();
 
-                /* Modifizierten String vom Server empfangen */
-                modifiedSentence = readFromServer();
-
-                /* Test, ob Client beendet werden soll */
-                if (modifiedSentence.toLowerCase().startsWith("/quit")) {
-                    writeToServer("/quit");
-                    serviceRequested = false;
-                }
-            }
-
-            /* Socket-Streams schliessen --> Verbindungsabbau */
-            clientSocket.close();
         } catch (IOException e) {
             System.err.println("Connection aborted by server!");
         }
-        System.out.println("TCP Client stopped!");
     }
 
     private void writeToServer(String request) throws IOException {
@@ -84,15 +61,9 @@ public class TCPClient {
         outToServer.writeBytes(request + '\r' + '\n');
     }
 
-    private String readFromServer() throws IOException {
-        /* Lies die Antwort (reply) vom Server */
-        String reply = inFromServer.readLine();
-        System.out.println(reply);
-        return reply;
-    }
-
     public static void main(String[] args) {
 
+        /* Standard Parameter */
         String host = "localhost";
         int port = 666;
 
@@ -102,7 +73,77 @@ public class TCPClient {
         }
 
         /* Test: Erzeuge Client und starte ihn. */
-        TCPClient myClient = new TCPClient(host, port);
-        myClient.startJob();
+        new TCPClient(host, port).startJob();
+    }
+
+    class ClientThread extends Thread {
+
+        private TCPClient client;
+
+        private boolean serviceRequested = true;
+
+        public ClientThread(TCPClient client) {
+            this.client = client;
+        }
+
+        public void run() {
+
+            int retryCounter = 0;
+
+            while (serviceRequested) {
+                try {
+                    String reply = inFromServer.readLine();
+                    retryCounter = 0;
+                    System.out.println(reply);
+
+                } catch (IOException e) {
+                    retryCounter++;
+                    System.err.println("Lost connection to server - trying to reconnect... " + retryCounter);
+                    try {
+                        sleep(3000);
+                    } catch (InterruptedException e1) {
+                    }
+                    if (retryCounter > 3) {
+                        serviceRequested = false;
+                        userInputThread.interrupt();
+                        /* Socket-Streams schliessen --> Verbindungsabbau */
+                        try {
+                            clientSocket.close();
+                        } catch (IOException e1) {
+                        }
+                        System.err.println("Lost connection to server. Quitting.");
+                    }
+                }
+            }
+        }
+    }
+
+    class UserInput extends Thread {
+
+        public void run() {
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            String input;
+            while(!isInterrupted()) {
+                try {
+                    // wait until we have data to complete a readLine()
+                    while (!br.ready() && !isInterrupted()) {
+                        this.sleep(200);
+                    }
+                    if (!isInterrupted()) {
+                        input = br.readLine();
+
+                        try {
+                            writeToServer(input);
+                        } catch (IOException e) {
+                            System.err.println("Failed to send message to server.");
+                        }
+                    }
+
+                } catch (InterruptedException e) {
+                    this.interrupt();
+                } catch (IOException e) {
+                }
+            }
+        }
     }
 }

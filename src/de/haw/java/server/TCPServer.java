@@ -26,7 +26,7 @@ import java.util.concurrent.Semaphore;
 public class TCPServer {
 /* TCP-Server, der Verbindungsanfragen entgegennimmt */
 
-    /* Konstante für Umbrüche */
+    /* Konstante fÃ¼r UmbrÃ¼che */
     public static final String CRLF  = "\r\n";
 
     /* Semaphore begrenzt die Anzahl parallel laufender Worker-Threads  */
@@ -38,7 +38,7 @@ public class TCPServer {
     /* Anzeige, ob der Server-Dienst weiterhin benoetigt wird */
     public boolean serviceRequested = true;
 
-    /* Löst Nutzernamen in ihre zugehörigen Threads auf */
+    /* LÃ¶st Nutzernamen in ihre zugehÃ¶rigen Threads auf */
     public final Map<String, ClientThread> nicknamesToClients;
 
     /* Liste aller aktiven Client-Threads */
@@ -81,10 +81,8 @@ public class TCPServer {
             /* Server-Socket erzeugen */
             welcomeSocket = new ServerSocket(serverPort);
 
-            // TODO Thread Routine für Prüfung, ob Clientverbindungen noch aktiv sind, einbauen (Polling über alle Sockets, Conn.State abfragen)
-
             while (serviceRequested) {
-                clientThreadsSem.acquire();  // Blockieren, wenn max. Anzahl Worker-Threads erreicht
+                clientThreadsSem.acquire();  // Blockieren, wenn max. Anzahl Client-Threads erreicht
 
                 System.out.println("Chat-Server wartet auf Verbindung auf Port " + serverPort);
                 /*
@@ -120,7 +118,6 @@ public class TCPServer {
                 recipient.writeServerMessageToClient(message);
             }
         }
-        log("SERVER: " + message);
     }
 
     /**
@@ -135,14 +132,13 @@ public class TCPServer {
                 recipient.writeToClient(sender.getNickname() + ": " + message);
             }
         }
-        log(sender.getNickname() + ": " + message);
     }
 
     /**
-     * Sendet eine private Nachricht eines Clients an einen bestimmten Client (Flüstern)
+     * Sendet eine private Nachricht eines Clients an einen bestimmten Client (FlÃ¼stern)
      * @param message Zu sendene Nachricht
      * @param sender Absender
-     * @param recipientNickname Geheimer Empfänger
+     * @param recipientNickname Geheimer EmpfÃ¤nger
      * @throws IOException
      */
     public void whisperToClient(String message, ClientThread sender, String recipientNickname) throws IOException {
@@ -154,7 +150,7 @@ public class TCPServer {
 
     /**
      * Registriert einen neu angemeldeten Client am Server zur Nutzung des Chats
-     * @param inNickname   Gewünschter Nutzername
+     * @param inNickname   GewÃ¼nschter Nutzername
      * @param clientThread Threadreferenz des anfragenden Clients
      * @return true, falls Nutzer erfolgreich beigetreten ist.
      */
@@ -194,6 +190,10 @@ public class TCPServer {
         }
     }
 
+    /**
+     * Loggt eine Nachricht in der Konsole
+     * @param message Zu loggene Nachricht
+     */
     private void log(String message) {
         System.out.println(message);
     }
@@ -201,7 +201,7 @@ public class TCPServer {
     /** EVENTS **/
 
     /**
-     * Benachrichtigt alle Clients über den Beitritt eines Clients
+     * Benachrichtigt alle Clients Ã¼ber den Beitritt eines Clients
      * @param client Client, der beitritt
      * @throws IOException
      */
@@ -210,18 +210,18 @@ public class TCPServer {
     }
 
     /**
-     * Benachrichtigt alle Clients über das Verlassen eines Clients
-     * @param client Client, der den Server verlässt
+     * Benachrichtigt alle Clients Ã¼ber das Verlassen eines Clients
+     * @param client Client, der den Server verlÃ¤sst
      * @throws IOException
      */
     public void onClientLogout(ClientThread client) throws IOException {
-        notifyClients(client.getNickname() + " verlässt den Raum.");
+        notifyClients(client.getNickname() + " verlÃ¤sst den Raum.");
     }
 
     /**
-     * Behandelt eine Umbenennungsanfrage eines Clients und führt die Umbenennung durch
-     * @param desiredNickname Gewünschter Nutzername
-     * @param clientThread    Threadreferenz des Nutzers, der sich umbenennen möchte
+     * Behandelt eine Umbenennungsanfrage eines Clients und fÃ¼hrt die Umbenennung durch
+     * @param desiredNickname GewÃ¼nschter Nutzername
+     * @param clientThread    Threadreferenz des Nutzers, der sich umbenennen mÃ¶chte
      * @return true, falls Umbenennung erfolgreich
      */
     public boolean onClientRename(String desiredNickname, ClientThread clientThread) throws IOException {
@@ -239,8 +239,8 @@ public class TCPServer {
     /** PREDICATES **/
 
     /**
-     * Prüft, ob ein Nutzername bereits vergeben ist
-     * @param nickname Zu prüfender Nutzername
+     * PrÃ¼ft, ob ein Nutzername bereits vergeben ist
+     * @param nickname Zu prÃ¼fender Nutzername
      * @return true, falls Nutzername bereits vergeben
      */
     public boolean userExists(String nickname) {
@@ -250,7 +250,7 @@ public class TCPServer {
     /** GETTER & SETTER **/
 
     /**
-     * Gibt alle angemeldeten Clients mit Nutzernamen zurück
+     * Gibt alle angemeldeten Clients mit Nutzernamen zurÃ¼ck
      * @return Alle angemeldeten Clients mit Nutzernamen
      */
     public String getUserlist() {
@@ -262,9 +262,24 @@ public class TCPServer {
     }
 
     /**
-     * Gibt an, ob der übergebene Nutzername zulässig ist.
-     * @param inNickname Zu prüfender Nutzername
-     * @return true, falls Nutzername zulässig ist
+     * Gibt alle verfÃ¼gbaren Befehle aus samt Nutzungsbeschreibung
+     * @return siehe Beschreibung
+     */
+    public String getHelp() {
+        return "/help - display this help" + CRLF +
+                "/users - Show list of all users on this server" + CRLF +
+                "/list - See /users" + CRLF +
+                "/rename <desired nickname> - Rename yourself using this command" + CRLF +
+                "/w <nickname> - Whisper to a user" + CRLF +
+                "/poke - Poke the s$%# outta somebody" + CRLF +
+                "/quit - /see logout" + CRLF +
+                "/logout - Sign off the chat";
+    }
+
+    /**
+     * Gibt an, ob der Ã¼bergebene Nutzername zulÃ¤ssig ist.
+     * @param inNickname Zu prÃ¼fender Nutzername
+     * @return true, falls Nutzername zulÃ¤ssig ist
      */
     public boolean isValidNickname(String inNickname) {
         // TODO mocked
@@ -286,16 +301,15 @@ class ClientThread extends Thread {
     private String nickname;
     private BufferedReader inFromClient;
     private DataOutputStream outToClient;
-    boolean clientServiceRequested = true; // Arbeitsthread beenden?
+    boolean clientServiceRequested = true; // Guard der Hauptschleife
 
-    //   private ClientState clientState;
     private boolean isAuthorized;
 
     private int logcount;
     /**
      * Konstruktor
      * @param num Thread-Nummer
-     * @param socket Zugehöriger Socket
+     * @param socket ZugehÃ¶riger Socket
      * @param server Serverobjekt
      */
     public ClientThread(int num, Socket socket, TCPServer server) {
@@ -312,12 +326,12 @@ class ClientThread extends Thread {
     public void run() {
 
         try {
-        /* Socket-Basisstreams durch spezielle Streams filtern */
+            /* Socket-Basisstreams durch spezielle Streams filtern */
             inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             outToClient = new DataOutputStream(socket.getOutputStream());
 
 
-            /* HAUPTSCHLEIFE */
+            /** HAUPTSCHLEIFE **/
             while (clientServiceRequested) {
             /* Eingehende Nachricht vom Client einlesen und verarbeiten */
                 String inMessage = readFromClient();
@@ -329,31 +343,35 @@ class ClientThread extends Thread {
                 if (s.hasNext()) {
                     commandString += s.next();
 
-                    /* Prüfen, ob Client bereits zur Chat-Kommunikation authorisiert ist */
+                    /* PrÃ¼fen, ob Client bereits zur Chat-Kommunikation authorisiert ist */
                     if (isAuthorized) {
 
-                        /* Prüfen, ob Nachricht überhaupt ein gültiger Befehl ist */
+                        /* PrÃ¼fen, ob Nachricht Ã¼berhaupt ein gÃ¼ltiger Befehl ist */
                         if (isCommand(commandString)) {
-                            /* Prüfen, um welchen Befehl es sich handelt */
+                            /* PrÃ¼fen, um welchen Befehl es sich handelt */
                             if (isCommand("w", commandString)) {
                                 if (s.hasNext()) {
                                     String recipient = s.next();
                                     outMessage = inMessage.substring((commandString + recipient).length() + 1);
                                     server.whisperToClient(outMessage, this, recipient);
                                 } else {
-                                    writeServerMessageToClient("Fehler: Empfänger fehlt. /w <recipient nickname> <message>");
+                                    writeErrorMessageToClient("EmpfÃ¤nger fehlt. /w <recipient nickname> <message>");
                                 }
                             } else if (isCommand("poke", commandString)) {
                                 // TODO poke da shit outa some1
                                 todo();
                             } else if (isCommand("help", commandString)) {
-                                // TODO show help list
-                                todo();
+                                writeServerMessageToClient(server.getHelp());
                             } else if (isCommand("users", commandString) || (isCommand("list", commandString)))  {
                                 writeServerMessageToClient("Angemeldete Nutzer:" + CRLF + server.getUserlist());
                             } else if (isCommand("rename", commandString)) {
-                                // TODO renaming
-                                todo();
+                                String desiredNickname = "";
+                                if (s.hasNext()) {
+                                    desiredNickname = s.next();
+                                } else {
+                                    writeErrorMessageToClient("Nutzername ungÃ¼ltig. /rename <desired nickname");
+                                }
+                                server.onClientRename(desiredNickname, this);
                             } else if (isCommand("logout", commandString) || isCommand("quit", commandString)) {
                                 clientServiceRequested = false;
                             }
@@ -377,24 +395,24 @@ class ClientThread extends Thread {
                                         writeServerMessageToClient("Anmeldung erfolgreich. Hallo " + inNickname + "!");
                                         isAuthorized = true;
                                     }
-                                // falls Nickname nicht zulässig
+                                // falls Nickname nicht zulÃ¤ssig
                                 } else {
-                                    writeServerMessageToClient("Fehler: Nickname nicht zulässig. " + inNickname);
+                                    writeErrorMessageToClient("Nickname nicht zulÃ¤ssig. " + inNickname);
                                     isAuthorized = false;
                                 }
                             // falls kein Parameter angegeben wurde
                             } else {
-                                writeServerMessageToClient("Fehler: Nickname erwartet. /login <nickname>");
+                                writeErrorMessageToClient("Nickname erwartet. /login <nickname>");
                                 isAuthorized = false;
                             }
                         // falls nicht, wie erforderlich, der Anmelde-Befehl empfangen wurde
                         } else {
-                            log(commandString);
+//                            log(commandString);
                             if (isCommand("quit", commandString)) {
                                 clientServiceRequested = false;
                             } else {
-                                writeServerMessageToClient("Fehler: Sie müssen zuerst einen Nutzernamen wählen. /login <nickname>"
-                                        + CRLF + "Andernfalls müssen Sie /quit nutzen, um das Programm zu beenden.");
+                                writeErrorMessageToClient("Sie mÃ¼ssen zuerst einen Nutzernamen wÃ¤hlen. /login <nickname>"
+                                        + CRLF + "Andernfalls mÃ¼ssen Sie /quit nutzen, um das Programm zu beenden.");
                             }
                             isAuthorized = false;
                         }
@@ -431,13 +449,33 @@ class ClientThread extends Thread {
      */
     public void writeToClient(String outMessage) throws IOException {
         /* Sende den String als Antwortzeile (mit CRLF) zum Client */
-        outToClient.writeBytes(outMessage + '\r' + '\n');
+        String out = outMessage + '\r' + '\n';
+        outToClient.writeBytes(out);
+        System.out.println(out);
     }
 
+    /**
+     * Sendet eine Servernachricht an den Client
+     * @param outMessage Zu versendene Nachricht
+     * @throws IOException
+     */
     public void writeServerMessageToClient(String outMessage) throws IOException {
         writeToClient("SERVER: " + outMessage);
     }
 
+    /**
+     * Sendet dem Client eine Fehlermeldung
+     * @param errMessage Zu sendene Fehlermeldung
+     * @throws IOException
+     */
+    public void writeErrorMessageToClient(String errMessage) throws IOException {
+        writeToClient("FEHLER: " + errMessage);
+    }
+
+    /**
+     * Gibt RÃ¼ckmeldung, dass eine FunktionalitÃ¤t noch nicht implementiert wurde
+     * @throws IOException
+     */
     public void todo() throws IOException {
         writeServerMessageToClient("TODO - not yet implemented.");
     }
@@ -445,7 +483,7 @@ class ClientThread extends Thread {
     /** PREDICATES **/
 
     /**
-     * Prüft, ob eingehende Nachricht einen Befehl darstellt
+     * PrÃ¼ft, ob eingehende Nachricht einen Befehl darstellt
      * @param inMessage Eingehende Nachricht
      * @return true, falls Nachricht ein Befehl ist.
      */
@@ -454,7 +492,7 @@ class ClientThread extends Thread {
     }
 
     /**
-     * Prüft, ob eingehende Nachricht einem bestimmten Befehl entspricht
+     * PrÃ¼ft, ob eingehende Nachricht einem bestimmten Befehl entspricht
      * @param inMessage Eingehende Nachricht
      * @param command   Erwarteter Befehl
      * @return true, falls erwarteter Befehl empfangen
@@ -475,6 +513,10 @@ class ClientThread extends Thread {
 
     /** OPERATIONS **/
 
+    /**
+     * Gibt an, ob der Client bereits authorisiert ist am Chat teilzunehmen
+     * @return true, falls Client authorisiert ist
+     */
     public boolean isAuthorized() {
         return isAuthorized;
     }
