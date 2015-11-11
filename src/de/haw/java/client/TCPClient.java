@@ -15,7 +15,9 @@ import java.io.InputStreamReader;
 import java.net.Socket;
 
 public class TCPClient {
-    /* Portnummer */
+    private static final String VERSION = "Chat-0.0.1";
+
+	/* Portnummer */
     private final int serverPort;
 
     /* Hostname */
@@ -26,11 +28,19 @@ public class TCPClient {
     private DataOutputStream outToServer; // Ausgabestream zum Server
     private BufferedReader inFromServer; // Eingabestream vom Server
 
-    private Thread userInputThread;
+//    private Thread userInputThread;
 
-    public TCPClient(String hostname, int serverPort) {
+	private ChatUI ui;
+
+	private String name;
+
+	private ClientThread clientThread;
+
+    public TCPClient(String hostname, int serverPort, ChatUI ui, String name) {
         this.serverPort = serverPort;
         this.hostname = hostname;
+		this.ui = ui;
+		this.name = name;
     }
 
     public void startJob() {
@@ -42,39 +52,40 @@ public class TCPClient {
             outToServer = new DataOutputStream(clientSocket.getOutputStream());
             inFromServer = new BufferedReader(new InputStreamReader(
                     clientSocket.getInputStream()));
+            
+            this.writeToServer("Protocol: " + VERSION);
+            String awnser = inFromServer.readLine();
+            
+			if (awnser.equals("ACCESS GRANTED")) {
+            	ui.addInfoMessage("Connection to server established.");
+            	
+            	clientThread = new ClientThread(this);
+            	clientThread.start();
+            	
+            	this.writeToServer("/login " + this.name);
+//            	userInputThread = new UserInput();
+//            	userInputThread.start();
+            	
+            } else {
+            	ui.addInfoMessage("Server rejected connection:\r\n" + awnser);
+            }
 
-            System.out.println("Bitte wählen Sie einen Nutzernamen mit /login <nickname> aus");
-
-            ClientThread clientThread = new ClientThread(this);
-            clientThread.start();
-
-            userInputThread = new UserInput();
-            userInputThread.start();
 
         } catch (IOException e) {
-            System.err.println("Connection aborted by server!");
+            ui.addInfoMessage("Connection aborted by server!");
         }
     }
 
-    private void writeToServer(String request) throws IOException {
+    public void writeToServer(String request) {
         /* Sende eine Zeile (mit CRLF) zum Server */
-        outToServer.writeBytes(request + '\r' + '\n');
+        try {
+			outToServer.writeBytes(request + '\r' + '\n');
+		} catch (IOException e) {
+			ui.addInfoMessage("Failed to transmit message to server.");
+		}
     }
 
-    public static void main(String[] args) {
 
-        /* Standard Parameter */
-        String host = "localhost";
-        int port = 666;
-
-        if (args.length == 2) {
-            host = args[0];
-            port = new Integer(args[1]);
-        }
-
-        /* Test: Erzeuge Client und starte ihn. */
-        new TCPClient(host, port).startJob();
-    }
 
     class ClientThread extends Thread {
 
@@ -93,57 +104,70 @@ public class TCPClient {
             while (serviceRequested) {
                 try {
                     String reply = inFromServer.readLine();
+                    if (reply == null) {
+                    	// server down
+                    	throw new IOException();
+                    } else if (reply.startsWith("/RENAMESUCCESS")) {
+                    	ui.setName(reply.split(" ")[1]);
+                    } else if (reply.startsWith("/LOGINSUCCESS")) {
+                    	ui.setName(reply.split(" ")[1]);
+                    } else {
+                    	ui.addChatMessage(reply);
+                    }
                     retryCounter = 0;
-                    System.out.println(reply);
 
                 } catch (IOException e) {
                     retryCounter++;
-                    System.err.println("Lost connection to server - trying to reconnect... " + retryCounter);
+                    ui.addInfoMessage("Lost connection to server - trying to reconnect... " + retryCounter);
                     try {
                         sleep(3000);
                     } catch (InterruptedException e1) {
                     }
                     if (retryCounter > 3) {
                         serviceRequested = false;
-                        userInputThread.interrupt();
                         /* Socket-Streams schliessen --> Verbindungsabbau */
                         try {
                             clientSocket.close();
                         } catch (IOException e1) {
                         }
-                        System.err.println("Lost connection to server. Quitting.");
+                        ui.addInfoMessage("Lost connection to server. Quitting.");
                     }
                 }
             }
         }
     }
 
-    class UserInput extends Thread {
+//    class UserInput extends Thread {
+//
+//        public void run() {
+//            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+//            String input;
+//            while(!isInterrupted()) {
+//                try {
+//                    // wait until we have data to complete a readLine()
+//                    while (!br.ready() && !isInterrupted()) {
+//                        Thread.sleep(200);
+//                    }
+//                    if (!isInterrupted()) {
+//                        input = br.readLine();
+//
+//                        writeToServer(input);
+//                    }
+//
+//                } catch (InterruptedException e) {
+//                    this.interrupt();
+//                } catch (IOException e) {
+//                }
+//            }
+//        }
+//    }
 
-        public void run() {
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String input;
-            while(!isInterrupted()) {
-                try {
-                    // wait until we have data to complete a readLine()
-                    while (!br.ready() && !isInterrupted()) {
-                        this.sleep(200);
-                    }
-                    if (!isInterrupted()) {
-                        input = br.readLine();
-
-                        try {
-                            writeToServer(input);
-                        } catch (IOException e) {
-                            System.err.println("Failed to send message to server.");
-                        }
-                    }
-
-                } catch (InterruptedException e) {
-                    this.interrupt();
-                } catch (IOException e) {
-                }
-            }
-        }
-    }
+	public void shutDown() {
+		try {
+			this.clientSocket.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		clientThread.stop();
+	}
 }

@@ -25,6 +25,8 @@ import java.util.concurrent.Semaphore;
 
 public class TCPServer {
 /* TCP-Server, der Verbindungsanfragen entgegennimmt */
+	
+    public static final String VERSION = "Chat-0.0.1";
 
     /* Konstante für Umbrüche */
     public static final String CRLF  = "\r\n";
@@ -43,20 +45,6 @@ public class TCPServer {
 
     /* Liste aller aktiven Client-Threads */
     public final List<ClientThread> clients;
-
-
-    public static void main(String[] args) {
-        TCPServer myServer;
-        int serverPort = 666;
-        int maxClients = 100;
-
-        if (args.length == 2) {
-            serverPort = new Integer(args[0]);
-            maxClients = new Integer(args[1]);
-        }
-        myServer = new TCPServer(serverPort, maxClients);
-        myServer.startServer();
-    }
 
     /**
      * Konstruktor mit Parametern: Server-Port, Maximale Anzahl paralleler Worker-Threads
@@ -230,7 +218,7 @@ public class TCPServer {
             String formerNickname = clientThread.getNickname();
             nicknamesToClients.remove(formerNickname); // alten Namen entfernen
             clientThread.setNickname(desiredNickname);
-            notifyClients("SERVER: " + formerNickname + " hat sich zu " + desiredNickname + " umbenannt.");
+            notifyClients(formerNickname + " hat sich zu " + desiredNickname + " umbenannt.");
             return true;
         }
         return false;
@@ -283,7 +271,7 @@ public class TCPServer {
      */
     public boolean isValidNickname(String inNickname) {
         // TODO mocked
-        return !inNickname.isEmpty();
+        return !inNickname.isEmpty() && !userExists(inNickname);
     }
 }
 
@@ -330,6 +318,15 @@ class ClientThread extends Thread {
             inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             outToClient = new DataOutputStream(socket.getOutputStream());
 
+            
+            // Protocol
+            if (readFromClient().equals("Protocol: " + TCPServer.VERSION)) {
+            	clientServiceRequested = true;
+            	writeToClient("ACCESS GRANTED");
+            } else {
+            	clientServiceRequested = false;
+            	writeToClient("ACCES DENIED - Supported Protocol: " + TCPServer.VERSION);
+            }
 
             /** HAUPTSCHLEIFE **/
             while (clientServiceRequested) {
@@ -369,9 +366,13 @@ class ClientThread extends Thread {
                                 if (s.hasNext()) {
                                     desiredNickname = s.next();
                                 } else {
-                                    writeErrorMessageToClient("Nutzername ungültig. /rename <desired nickname");
+                                    writeErrorMessageToClient("Nutzername ungültig. /rename <desired nickname>");
                                 }
-                                server.onClientRename(desiredNickname, this);
+                                if (server.onClientRename(desiredNickname, this)) {
+                                	writeToClient("/RENAMESUCCESS " + desiredNickname);
+                                } else {
+                                	writeToClient("Nutzername ungültig oder bereits vergeben. /rename <desired nickname>");
+                                }
                             } else if (isCommand("logout", commandString) || isCommand("quit", commandString)) {
                                 clientServiceRequested = false;
                             }
@@ -392,12 +393,14 @@ class ClientThread extends Thread {
                                 inNickname = s.next();
                                 if (server.isValidNickname(inNickname)) {
                                     if (server.registerUser(inNickname, this)) {
+                                    	writeToClient("/LOGINSUCCESS " + inNickname);
                                         writeServerMessageToClient("Anmeldung erfolgreich. Hallo " + inNickname + "!");
                                         isAuthorized = true;
                                     }
                                 // falls Nickname nicht zulässig
                                 } else {
-                                    writeErrorMessageToClient("Nickname nicht zulässig. " + inNickname);
+                                    writeErrorMessageToClient("Nickname nicht zulässig oder bereits vergeben. " + inNickname);
+                                    writeErrorMessageToClient("Bitte erneut versuchen mit: /login <name>");
                                     isAuthorized = false;
                                 }
                             // falls kein Parameter angegeben wurde

@@ -100,3 +100,4 @@ tramp
 Session.vim
 .netrwhist
 *~
+/bin/
