@@ -26,7 +26,6 @@ public class TCPClient {
     private DataOutputStream outToServer; // Ausgabestream zum Server
     private BufferedReader inFromServer; // Eingabestream vom Server
 
-    private boolean serviceRequested = true; // Client beenden?
     private Thread userInputThread;
 
     public TCPClient(String hostname, int serverPort) {
@@ -117,22 +116,13 @@ public class TCPClient {
                 }
             }
         }
-
-        public boolean isServiceRequested() {
-            return serviceRequested;
-        }
-
-        public void setServiceRequested(boolean serviceRequested) {
-            this.serviceRequested = serviceRequested;
-        }
-
     }
 
     class UserInput extends Thread {
 
         public void run() {
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String input = "";
+            String input;
             while(!isInterrupted()) {
                 try {
                     // wait until we have data to complete a readLine()

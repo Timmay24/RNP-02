@@ -81,10 +81,8 @@ public class TCPServer {
             /* Server-Socket erzeugen */
             welcomeSocket = new ServerSocket(serverPort);
 
-            // TODO Thread Routine für Prüfung, ob Clientverbindungen noch aktiv sind, einbauen (Polling über alle Sockets, Conn.State abfragen)
-
             while (serviceRequested) {
-                clientThreadsSem.acquire();  // Blockieren, wenn max. Anzahl Worker-Threads erreicht
+                clientThreadsSem.acquire();  // Blockieren, wenn max. Anzahl Client-Threads erreicht
 
                 System.out.println("Chat-Server wartet auf Verbindung auf Port " + serverPort);
                 /*
@@ -120,7 +118,6 @@ public class TCPServer {
                 recipient.writeServerMessageToClient(message);
             }
         }
-        log("SERVER: " + message);
     }
 
     /**
@@ -135,7 +132,6 @@ public class TCPServer {
                 recipient.writeToClient(sender.getNickname() + ": " + message);
             }
         }
-        log(sender.getNickname() + ": " + message);
     }
 
     /**
@@ -194,6 +190,10 @@ public class TCPServer {
         }
     }
 
+    /**
+     * Loggt eine Nachricht in der Konsole
+     * @param message Zu loggene Nachricht
+     */
     private void log(String message) {
         System.out.println(message);
     }
@@ -262,6 +262,21 @@ public class TCPServer {
     }
 
     /**
+     * Gibt alle verfügbaren Befehle aus samt Nutzungsbeschreibung
+     * @return siehe Beschreibung
+     */
+    public String getHelp() {
+        return "/help - display this help" + CRLF +
+                "/users - Show list of all users on this server" + CRLF +
+                "/list - See /users" + CRLF +
+                "/rename <desired nickname> - Rename yourself using this command" + CRLF +
+                "/w <nickname> - Whisper to a user" + CRLF +
+                "/poke - Poke the s$%# outta somebody" + CRLF +
+                "/quit - /see logout" + CRLF +
+                "/logout - Sign off the chat";
+    }
+
+    /**
      * Gibt an, ob der übergebene Nutzername zulässig ist.
      * @param inNickname Zu prüfender Nutzername
      * @return true, falls Nutzername zulässig ist
@@ -286,9 +301,8 @@ class ClientThread extends Thread {
     private String nickname;
     private BufferedReader inFromClient;
     private DataOutputStream outToClient;
-    boolean clientServiceRequested = true; // Arbeitsthread beenden?
+    boolean clientServiceRequested = true; // Guard der Hauptschleife
 
-    //   private ClientState clientState;
     private boolean isAuthorized;
 
     private int logcount;
@@ -312,12 +326,12 @@ class ClientThread extends Thread {
     public void run() {
 
         try {
-        /* Socket-Basisstreams durch spezielle Streams filtern */
+            /* Socket-Basisstreams durch spezielle Streams filtern */
             inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             outToClient = new DataOutputStream(socket.getOutputStream());
 
 
-            /* HAUPTSCHLEIFE */
+            /** HAUPTSCHLEIFE **/
             while (clientServiceRequested) {
             /* Eingehende Nachricht vom Client einlesen und verarbeiten */
                 String inMessage = readFromClient();
@@ -341,19 +355,23 @@ class ClientThread extends Thread {
                                     outMessage = inMessage.substring((commandString + recipient).length() + 1);
                                     server.whisperToClient(outMessage, this, recipient);
                                 } else {
-                                    writeServerMessageToClient("Fehler: Empfänger fehlt. /w <recipient nickname> <message>");
+                                    writeErrorMessageToClient("Empfänger fehlt. /w <recipient nickname> <message>");
                                 }
                             } else if (isCommand("poke", commandString)) {
                                 // TODO poke da shit outa some1
                                 todo();
                             } else if (isCommand("help", commandString)) {
-                                // TODO show help list
-                                todo();
+                                writeServerMessageToClient(server.getHelp());
                             } else if (isCommand("users", commandString) || (isCommand("list", commandString)))  {
                                 writeServerMessageToClient("Angemeldete Nutzer:" + CRLF + server.getUserlist());
                             } else if (isCommand("rename", commandString)) {
-                                // TODO renaming
-                                todo();
+                                String desiredNickname = "";
+                                if (s.hasNext()) {
+                                    desiredNickname = s.next();
+                                } else {
+                                    writeErrorMessageToClient("Nutzername ungültig. /rename <desired nickname");
+                                }
+                                server.onClientRename(desiredNickname, this);
                             } else if (isCommand("logout", commandString) || isCommand("quit", commandString)) {
                                 clientServiceRequested = false;
                             }
@@ -379,21 +397,21 @@ class ClientThread extends Thread {
                                     }
                                 // falls Nickname nicht zulässig
                                 } else {
-                                    writeServerMessageToClient("Fehler: Nickname nicht zulässig. " + inNickname);
+                                    writeErrorMessageToClient("Nickname nicht zulässig. " + inNickname);
                                     isAuthorized = false;
                                 }
                             // falls kein Parameter angegeben wurde
                             } else {
-                                writeServerMessageToClient("Fehler: Nickname erwartet. /login <nickname>");
+                                writeErrorMessageToClient("Nickname erwartet. /login <nickname>");
                                 isAuthorized = false;
                             }
                         // falls nicht, wie erforderlich, der Anmelde-Befehl empfangen wurde
                         } else {
-                            log(commandString);
+//                            log(commandString);
                             if (isCommand("quit", commandString)) {
                                 clientServiceRequested = false;
                             } else {
-                                writeServerMessageToClient("Fehler: Sie müssen zuerst einen Nutzernamen wählen. /login <nickname>"
+                                writeErrorMessageToClient("Sie müssen zuerst einen Nutzernamen wählen. /login <nickname>"
                                         + CRLF + "Andernfalls müssen Sie /quit nutzen, um das Programm zu beenden.");
                             }
                             isAuthorized = false;
@@ -431,13 +449,33 @@ class ClientThread extends Thread {
      */
     public void writeToClient(String outMessage) throws IOException {
         /* Sende den String als Antwortzeile (mit CRLF) zum Client */
-        outToClient.writeBytes(outMessage + '\r' + '\n');
+        String out = outMessage + '\r' + '\n';
+        outToClient.writeBytes(out);
+        System.out.println(out);
     }
 
+    /**
+     * Sendet eine Servernachricht an den Client
+     * @param outMessage Zu versendene Nachricht
+     * @throws IOException
+     */
     public void writeServerMessageToClient(String outMessage) throws IOException {
         writeToClient("SERVER: " + outMessage);
     }
 
+    /**
+     * Sendet dem Client eine Fehlermeldung
+     * @param errMessage Zu sendene Fehlermeldung
+     * @throws IOException
+     */
+    public void writeErrorMessageToClient(String errMessage) throws IOException {
+        writeToClient("FEHLER: " + errMessage);
+    }
+
+    /**
+     * Gibt Rückmeldung, dass eine Funktionalität noch nicht implementiert wurde
+     * @throws IOException
+     */
     public void todo() throws IOException {
         writeServerMessageToClient("TODO - not yet implemented.");
     }
@@ -475,6 +513,10 @@ class ClientThread extends Thread {
 
     /** OPERATIONS **/
 
+    /**
+     * Gibt an, ob der Client bereits authorisiert ist am Chat teilzunehmen
+     * @return true, falls Client authorisiert ist
+     */
     public boolean isAuthorized() {
         return isAuthorized;
     }
