@@ -39,7 +39,7 @@ public class ChatUI {
 		buttonPanel.setLayout(new FlowLayout(FlowLayout.CENTER));
 		nickButton = new JButton("Rename");
 		nickButton.addActionListener(e -> {
-            final JDialog nickChangeDialog = new JDialog();
+            final JDialog nickChangeDialog = new JDialog(dialog, "Change Nickname", Dialog.ModalityType.DOCUMENT_MODAL);
             Container nickChangeContainer = nickChangeDialog.getContentPane();
             nickChangeContainer.setLayout(new BoxLayout(nickChangeContainer, BoxLayout.LINE_AXIS));
             JLabel label = new JLabel("New Nickname?");
