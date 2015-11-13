@@ -54,20 +54,18 @@ public class TCPClient {
                     clientSocket.getInputStream()));
             
             this.writeToServer("Protocol: " + VERSION);
-            String awnser = inFromServer.readLine();
+            String answer = inFromServer.readLine();
             
-			if (awnser.equals("ACCESS GRANTED")) {
+			if (answer.equals("ACCESS GRANTED")) {
             	ui.addInfoMessage("Connection to server established.");
             	
             	clientThread = new ClientThread(this);
             	clientThread.start();
             	
             	this.writeToServer("/login " + this.name);
-//            	userInputThread = new UserInput();
-//            	userInputThread.start();
             	
             } else {
-            	ui.addInfoMessage("Server rejected connection:\r\n" + awnser);
+            	ui.addInfoMessage("Server rejected connection:\r\n" + answer);
             }
 
 
