@@ -5,7 +5,8 @@ public class TCPClientMain {
     public static void main(String[] args) {
 
         /* Standard Parameter */
-        String host = "localhost";
+//    	String host = "141.22.27.109";
+    	String host = "localhost";
         int port = 10666;
 
         String name = "placeholder";
