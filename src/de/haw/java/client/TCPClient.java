@@ -77,12 +77,14 @@ public class TCPClient {
     public void writeToServer(String request) {
         /* Sende eine Zeile (mit CRLF) zum Server */
         try {
-			outToServer.writeBytes(request + '\r' + '\n');
+			outToServer.writeBytes(request.replace("\n", "") + '\r' + '\n');
+            // needed replace("\n", "") since multiple \n in one sequence causes BufferedReader#readLine
+            // to start over processing the next line which will be empty and therefore would lead into
+            // causing /ERR_MALFORMED_CMD
 		} catch (IOException e) {
 			ui.addInfoMessage("Failed to transmit message to server.");
 		}
     }
-
 
 
     class ClientThread extends Thread {
@@ -109,8 +111,10 @@ public class TCPClient {
                     	ui.setName(reply.split(" ")[1]);
                     } else if (reply.startsWith("/LOGINSUCCESS")) {
                     	ui.setName(reply.split(" ")[1]);
+                    } else if (reply.startsWith("/ERR")) {
+                        ui.handleError(reply);
                     } else {
-                    	ui.addChatMessage(reply);
+                        ui.addChatMessage(reply);
                     }
                     retryCounter = 0;
 

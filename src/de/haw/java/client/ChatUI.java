@@ -42,7 +42,7 @@ public class ChatUI {
             final JDialog nickChangeDialog = new JDialog(dialog, "Change Nickname", Dialog.ModalityType.DOCUMENT_MODAL);
             Container nickChangeContainer = nickChangeDialog.getContentPane();
             nickChangeContainer.setLayout(new BoxLayout(nickChangeContainer, BoxLayout.LINE_AXIS));
-            JLabel label = new JLabel("New Nickname?");
+            JLabel label = new JLabel("New Nickname:");
             nickChangeContainer.add(label);
             final JTextField inputArea1 = new JTextField();
             inputArea1.setPreferredSize(new Dimension(100, 16));
@@ -98,10 +98,17 @@ public class ChatUI {
 			public void keyReleased(KeyEvent e) {
 				String input = inputArea.getText();
 				if (input.length() > 1 && input.contains("\n")) {
-					System.err.println(input.length());
+//					System.err.println(input.length());
 					inputArea.setText("");
-					client.writeToServer(input);
-					addChatMessageBySelf(input);
+					// auto-format a non-command input as a /msg
+					String outMessage = "";
+					if (input.startsWith("/")) {
+						outMessage = input;
+					} else {
+						outMessage = "/msg " + input;
+					}
+					client.writeToServer(outMessage);
+					addChatMessageBySelf(input.replaceFirst("/msg ", ""));
 				}
 			}
 			
@@ -164,10 +171,12 @@ public class ChatUI {
 		dialog.setTitle("Nickname: " + getName());
 	}
 
+
 	public void addChatMessage(String message, String nickname) {
 		chatArea.setText(chatArea.getText() + nickname + ": " + message + "\r\n");
 	}
-	
+
+
 	private void addChatMessageBySelf(String message) {
 		chatArea.setText(chatArea.getText() + ">" +  getName() + ": " + message);
 	}
@@ -175,6 +184,22 @@ public class ChatUI {
 
 	public void addInfoMessage(String message) {
 		addChatMessage(message, "INFO");
+	}
+
+
+	public void addErrorMessage(String message) {
+		addChatMessage(message, "ERROR");
+	}
+
+
+	public void handleError(String message) {
+		if (message.startsWith("/ERR_MALFORMED_CMD")) {
+			addErrorMessage("Malformed command. Must start with /");
+		} else if (message.startsWith("/ERR_INVALID_CMD")) {
+			addErrorMessage("Invalid command.");
+		} else {
+			addErrorMessage("An unknown error occured --> " + message);
+		}
 	}
 
 

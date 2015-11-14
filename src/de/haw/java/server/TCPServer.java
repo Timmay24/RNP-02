@@ -133,7 +133,7 @@ public class TCPServer {
      * @param recipientNickname Geheimer Empfänger
      * @throws IOException
      */
-    public void whisperToClient(String message, ClientThread sender, String recipientNickname) throws IOException {
+    public synchronized void whisperToClient(String message, ClientThread sender, String recipientNickname) throws IOException {
         if (userExists(recipientNickname)) {
             nicknamesToClients.get(recipientNickname).writeToClient(sender.getNickname() + " <whisper>: " + message);
             log(sender.getNickname() + " whispers to " + recipientNickname + ": " + message);
@@ -146,7 +146,7 @@ public class TCPServer {
      * @param recipientNickname Der anzustupsende Client
      * @throws IOException
      */
-    public void pokeClient(ClientThread sender, String recipientNickname) throws IOException {
+    public synchronized void pokeClient(ClientThread sender, String recipientNickname) throws IOException {
     	if (userExists(recipientNickname)) {
             nicknamesToClients.get(recipientNickname).writeToClient(sender.getNickname() + " poked you!");
             log(sender.getNickname() + " pokes the s$%# out of " + recipientNickname);
@@ -159,7 +159,7 @@ public class TCPServer {
      * @param clientThread Threadreferenz des anfragenden Clients
      * @return true, falls Nutzer erfolgreich beigetreten ist.
      */
-    public boolean registerUser(String inNickname, ClientThread clientThread) throws IOException {
+    public synchronized boolean registerUser(String inNickname, ClientThread clientThread) throws IOException {
         if (!userExists(inNickname)) {
             nicknamesToClients.put(inNickname, clientThread);
             clientThread.setNickname(inNickname);
@@ -175,7 +175,7 @@ public class TCPServer {
      * @param client Thread des zu entfernenden Nutzers
      * @return true, falls Nutzer erfolgreich entfernt werden konnte
      */
-    public boolean removeUser(ClientThread client) {
+    public synchronized boolean removeUser(ClientThread client) {
         if (client != null && !client.getNickname().isEmpty()) {
 	    	clients.remove(client);
 	        nicknamesToClients.remove(client.getNickname());
@@ -191,7 +191,7 @@ public class TCPServer {
         }
     }
 
-    public boolean removeUser(String nickname) {
+    public synchronized boolean removeUser(String nickname) {
         if (userExists(nickname)) {
             return removeUser(nicknamesToClients.get(nickname));
         } else {
@@ -233,7 +233,7 @@ public class TCPServer {
      * @param clientThread    Threadreferenz des Nutzers, der sich umbenennen möchte
      * @return true, falls Umbenennung erfolgreich
      */
-    public boolean onClientRename(String desiredNickname, ClientThread clientThread) throws IOException {
+    public synchronized boolean onClientRename(String desiredNickname, ClientThread clientThread) throws IOException {
         if (!userExists(desiredNickname)) {
             nicknamesToClients.put(desiredNickname, clientThread); // neuen Namen anmelden
             String formerNickname = clientThread.getNickname();
@@ -252,7 +252,7 @@ public class TCPServer {
      * @param nickname Zu prüfender Nutzername
      * @return true, falls Nutzername bereits vergeben
      */
-    public boolean userExists(String nickname) {
+    public synchronized boolean userExists(String nickname) {
         return nicknamesToClients.keySet().contains(nickname);
     }
 
@@ -339,14 +339,13 @@ class ClientThread extends Thread {
             inFromClient = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             outToClient = new DataOutputStream(socket.getOutputStream());
 
-            
             // Protocol
             if (readFromClient().equals("Protocol: " + TCPServer.VERSION)) {
             	clientServiceRequested = true;
             	writeToClient("ACCESS GRANTED");
             } else {
             	clientServiceRequested = false;
-            	writeToClient("ACCES DENIED - Supported Protocol: " + TCPServer.VERSION);
+            	writeToClient("ACCESS DENIED - Supported Protocol: " + TCPServer.VERSION);
             }
 
             /** HAUPTSCHLEIFE **/
@@ -358,56 +357,51 @@ class ClientThread extends Thread {
 
                 Scanner s = new Scanner(inMessage).useDelimiter(" ");
 
-                if (s.hasNext()) {
+                if (isCommand(inMessage)) {
                     commandString += s.next();
 
                     /* Prüfen, ob Client bereits zur Chat-Kommunikation authorisiert ist */
                     if (isAuthorized) {
-
-                        /* Prüfen, ob Nachricht überhaupt ein gültiger Befehl ist */
-                        if (isCommand(commandString)) {
-                            /* Prüfen, um welchen Befehl es sich handelt */
-                            if (isCommand("w", commandString)) {
-                                if (s.hasNext()) {
-                                    String recipient = s.next();
-                                    outMessage = inMessage.substring((commandString + recipient).length() + 1);
-                                    server.whisperToClient(outMessage, this, recipient);
-                                } else {
-                                    writeErrorMessageToClient("Recipient missing. /w <recipient nickname> <message>");
-                                }
-                            } else if (isCommand("poke", commandString)) {
-                            	if (s.hasNext()) {
-                                    String recipient = s.next();
-                                    server.pokeClient(this, recipient);
-                                } else {
-                                    writeErrorMessageToClient("Recipient missing. /poke <recipient nickname>");
-                                }
-                            } else if (isCommand("help", commandString)) {
-                                writeServerMessageToClient(server.getHelp());
-                            } else if (isCommand("users", commandString) || (isCommand("list", commandString)))  {
-                                writeServerMessageToClient("/USERLIST\n" + server.getUserlist());
-                            } else if (isCommand("rename", commandString)) {
-                                String desiredNickname = "";
-                                if (s.hasNext()) {
-                                    desiredNickname = s.next();
-                                } else {
-                                    writeErrorMessageToClient("Nickname invalid. /rename <desired nickname>");
-                                }
-                                if (server.onClientRename(desiredNickname, this)) {
-                                	writeToClient("/RENAMESUCCESS " + desiredNickname);
-                                } else {
-                                	writeToClient("Nickname invalid or already taken. /rename <desired nickname>");
-                                }
-                            } else if (isCommand("logout", commandString) || isCommand("quit", commandString)) {
-                                clientServiceRequested = false;
-                            }
-                        // kein spezieller Befehl empfangen -> normale Nachricht an alle auf dem Server
-                        } else {
-                            outMessage += commandString;
-                            while (s.hasNext()) { outMessage += " " + s.next(); }
+                        /* Prüfen, um welchen Befehl es sich handelt */
+                        if (isCommand("msg", commandString)) {
+                            outMessage = inMessage.replaceFirst("/msg", "");
                             server.notifyClients(outMessage, this);
+                        } else if (isCommand("w", commandString)) {
+                            if (s.hasNext()) {
+                                String recipient = s.next();
+                                outMessage = inMessage.substring((commandString + recipient).length() + 1);
+                                server.whisperToClient(outMessage, this, recipient);
+                            } else {
+                                writeErrorMessageToClient("Recipient missing. /w <recipient nickname> <message>");
+                            }
+                        } else if (isCommand("poke", commandString)) {
+                            if (s.hasNext()) {
+                                String recipient = s.next();
+                                server.pokeClient(this, recipient);
+                            } else {
+                                writeErrorMessageToClient("Recipient missing. /poke <recipient nickname>");
+                            }
+                        } else if (isCommand("help", commandString)) {
+                            writeServerMessageToClient(server.getHelp());
+                        } else if (isCommand("users", commandString) || (isCommand("list", commandString)))  {
+                            writeServerMessageToClient("/USERLIST\n" + server.getUserlist());
+                        } else if (isCommand("rename", commandString)) {
+                            String desiredNickname = "";
+                            if (s.hasNext()) {
+                                desiredNickname = s.next();
+                            } else {
+                                writeErrorMessageToClient("Nickname invalid. /rename <desired nickname>");
+                            }
+                            if (server.onClientRename(desiredNickname, this)) {
+                                writeToClient("/RENAMESUCCESS " + desiredNickname);
+                            } else {
+                                writeToClient("Nickname invalid or already taken. /rename <desired nickname>");
+                            }
+                        } else if (isCommand("logout", commandString) || isCommand("quit", commandString)) {
+                            clientServiceRequested = false;
+                        } else {
+                            writeToClient("/ERR_INVALID_CMD");
                         }
-
                     // Client ist noch nicht authorisiert
                     } else {
                         // Anmelde-Befehl empfangen
@@ -444,6 +438,8 @@ class ClientThread extends Thread {
                             isAuthorized = false;
                         }
                     }
+                } else {
+                    writeToClient("/ERR_MALFORMED_CMD");
                 }
                 s.close();
             }
