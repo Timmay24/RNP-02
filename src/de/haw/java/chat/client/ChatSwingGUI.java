@@ -1,10 +1,10 @@
-package de.haw.java.client;
+package de.haw.java.chat.client;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
-public class ChatUI {
+public class ChatSwingGUI implements ChatUI {
 	
 	private TCPClient client;
 	private String name;
@@ -17,11 +17,12 @@ public class ChatUI {
 	private JTextArea chatArea;
 	private JTextArea inputArea;
 
-	public ChatUI(String name) {
+	public ChatSwingGUI(String name) {
 		this.name = name;
 	}
 
 
+	@Override
 	public void startUi() {
 
 		// Erst mal die System-Optik aufzwingen
@@ -35,21 +36,21 @@ public class ChatUI {
 		this.dialog = new JFrame();
 		contentPane = dialog.getContentPane();
 		contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
-		JPanel buttonPanel = new JPanel();
+		final JPanel buttonPanel = new JPanel();
 		buttonPanel.setLayout(new FlowLayout(FlowLayout.CENTER));
 		nickButton = new JButton("Rename");
 		nickButton.addActionListener(e -> {
             final JDialog nickChangeDialog = new JDialog(dialog, "Change Nickname", Dialog.ModalityType.DOCUMENT_MODAL);
-            Container nickChangeContainer = nickChangeDialog.getContentPane();
+            final Container nickChangeContainer = nickChangeDialog.getContentPane();
             nickChangeContainer.setLayout(new BoxLayout(nickChangeContainer, BoxLayout.LINE_AXIS));
-            JLabel label = new JLabel("New Nickname:");
+            final JLabel label = new JLabel("New Nickname:");
             nickChangeContainer.add(label);
             final JTextField inputArea1 = new JTextField();
             inputArea1.setPreferredSize(new Dimension(100, 16));
             nickChangeContainer.add(inputArea1);
-            JButton okButton = new JButton("OK");
+            final JButton okButton = new JButton("OK");
             okButton.addActionListener(e1 -> {
-                String input = inputArea1.getText();
+                final String input = inputArea1.getText();
                 if (!"".equals(input)) {
                     client.writeToServer("/rename " + input);
                     setName(input);
@@ -58,7 +59,7 @@ public class ChatUI {
                 }
             });
             nickChangeContainer.add(okButton);
-            JButton cancelButton = new JButton("Cancel");
+            final JButton cancelButton = new JButton("Cancel");
             cancelButton.addActionListener(e1 -> {
                 nickChangeDialog.setVisible(false);
                 nickChangeDialog.dispose();
@@ -80,7 +81,7 @@ public class ChatUI {
 		buttonPanel.add(clearButton);
 		contentPane.add(buttonPanel);
 		chatArea = new JTextArea();
-		JScrollPane scroll = new JScrollPane(chatArea, 
+		final JScrollPane scroll = new JScrollPane(chatArea, 
 				   JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 		scroll.setPreferredSize(new Dimension(300, 600));
 		chatArea.setEditable(false);
@@ -96,7 +97,7 @@ public class ChatUI {
 			
 			@Override
 			public void keyReleased(KeyEvent e) {
-				String input = inputArea.getText();
+				final String input = inputArea.getText();
 				if (input.length() > 1 && input.contains("\n")) {
 //					System.err.println(input.length());
 					inputArea.setText("");
@@ -118,7 +119,7 @@ public class ChatUI {
 		});
 		contentPane.add(inputArea);
 		dialog.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-		WindowListener listener = new WindowListener() {
+		final WindowListener listener = new WindowListener() {
 
 			@Override
 			public void windowOpened(WindowEvent e) {
@@ -166,6 +167,7 @@ public class ChatUI {
 	}
 
 
+	@Override
 	public void setName(String name) {
 		this.name = name;
 		dialog.setTitle("Nickname: " + getName());
@@ -182,6 +184,7 @@ public class ChatUI {
 	}
 
 
+	@Override
 	public void addInfoMessage(String message) {
 		addChatMessage(message, "INFO");
 	}
@@ -192,22 +195,13 @@ public class ChatUI {
 	}
 
 
-	public void handleError(String message) {
-		if (message.startsWith("/ERR_MALFORMED_CMD")) {
-			addErrorMessage("Malformed command. Must start with /");
-		} else if (message.startsWith("/ERR_INVALID_CMD")) {
-			addErrorMessage("Invalid command.");
-		} else {
-			addErrorMessage("An unknown error occured --> " + message);
-		}
-	}
-
-
+	@Override
 	public void setClient(TCPClient client) {
 		this.client = client;
 	}
 
 
+	@Override
 	public void addChatMessage(String message) {
 		chatArea.setText(chatArea.getText() + message + "\r\n");
 	}

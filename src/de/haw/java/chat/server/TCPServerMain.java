@@ -1,4 +1,4 @@
-package de.haw.java.server;
+package de.haw.java.chat.server;
 
 public class TCPServerMain {
 	
@@ -12,7 +12,7 @@ public class TCPServerMain {
             maxClients = new Integer(args[1]);
         }
         myServer = new TCPServer(serverPort, maxClients);
-        myServer.startServer();
+        myServer.run();
     }
 
 }

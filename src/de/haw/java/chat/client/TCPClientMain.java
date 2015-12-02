@@ -1,4 +1,4 @@
-package de.haw.java.client;
+package de.haw.java.chat.client;
 
 public class TCPClientMain {
 	
@@ -17,9 +17,9 @@ public class TCPClientMain {
             name  = args[2];
         }
 
-        ChatUI ui = new ChatUI(name);
+        final ChatUI ui = new ChatSwingGUI(name);
         /* Test: Erzeuge Client und starte ihn. */
-        TCPClient tcpClient = new TCPClient(host, port, ui, name);
+        final TCPClient tcpClient = new TCPClient(host, port, ui, name);
         ui.setClient(tcpClient);
         ui.startUi();
         tcpClient.startJob();

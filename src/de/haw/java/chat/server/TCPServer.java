@@ -1,4 +1,4 @@
-package de.haw.java.server;
+package de.haw.java.chat.server;
 /*
 * TCPServer.java
 *
@@ -14,6 +14,7 @@ package de.haw.java.server;
 */
 
 import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -27,7 +28,7 @@ import java.util.concurrent.Semaphore;
  * @author abq364
  *
  */
-public class TCPServer {
+public class TCPServer implements Runnable {
 /* TCP-Server, der Verbindungsanfragen entgegennimmt */
 	
     public static final String VERSION = "Chat-0.0.1";
@@ -49,6 +50,8 @@ public class TCPServer {
 
     /* Liste aller aktiven Client-Threads */
     public final List<ClientThread> clients;
+    
+    private final Thread listener;
 
     /**
      * Konstruktor mit Parametern: Server-Port, Maximale Anzahl paralleler Worker-Threads
@@ -58,12 +61,14 @@ public class TCPServer {
         this.clientThreadsSem = new Semaphore(maxThreads);
         clients = new ArrayList<>();
         nicknamesToClients = new HashMap<>();
+        this.listener = new Thread(this);
     }
 
     /**
      * Startet den Chat-Server
      */
-    public void startServer() {
+    @Override
+	public void run() {
         ServerSocket welcomeSocket;   // TCP-Server-Socketklasse
         Socket connectionSocket;      // TCP-Standard-Socketklasse
 
@@ -82,22 +87,30 @@ public class TCPServer {
                 * Standard-Socket erzeugen und an connectionSocket zuweisen
                 */
                 connectionSocket = welcomeSocket.accept();
-
+                
                 System.out.println("Incoming connection from " + connectionSocket.getInetAddress() + " bound to port " + connectionSocket.getPort());
 
                 /* Neuen Client-Thread erzeugen und die Nummer, den Socket sowie das Serverobjekt uebergeben */
-                ClientThread newClientThread = new ClientThread(++nextThreadNumber, connectionSocket, this);
+                final ClientThread newClientThread = new ClientThread(++nextThreadNumber, connectionSocket, this);
                 clients.add(newClientThread);
                 newClientThread.start();
 
+               
                 /* AUTHORISIERUNG (BZW. WAHL DES NUTZERNAMENS) ERFOLGT GESONDERT NACH EINRICHTUNG VON SOCKET UND THREAD  */
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
             System.err.println(e.toString());
         }
     }
+    
 
     /** OPERATIONS **/
+    public void shutDown() {
+    	for (final ClientThread clientThread : clients) {
+			clientThread.shutDown();
+		}
+    	this.listener.stop();
+    }
 
     /**
      * Sendet die eine Servernachricht an alle Clients
@@ -105,7 +118,7 @@ public class TCPServer {
      * @throws IOException
      */
     public void notifyClients(String message) throws IOException {
-        for (ClientThread recipient : clients) {
+        for (final ClientThread recipient : clients) {
             if (recipient.isAuthorized()) {
                 recipient.writeServerMessageToClient(message);
             }
@@ -119,7 +132,7 @@ public class TCPServer {
      * @throws IOException
      */
     public void notifyClients(String message, ClientThread sender) throws IOException {
-        for (ClientThread recipient : clients) {
+        for (final ClientThread recipient : clients) {
             if (!recipient.equals(sender) && recipient.isAuthorized()) {
                 recipient.writeToClient(sender.getNickname() + ": " + message);
             }
@@ -181,7 +194,7 @@ public class TCPServer {
 	        nicknamesToClients.remove(client.getNickname());
 	        try {
 	            onClientLogout(client);
-	        } catch (IOException e) {
+	        } catch (final IOException e) {
 	            e.printStackTrace();
 	        }
 	        clientThreadsSem.release();
@@ -236,7 +249,7 @@ public class TCPServer {
     public synchronized boolean onClientRename(String desiredNickname, ClientThread clientThread) throws IOException {
         if (!userExists(desiredNickname)) {
             nicknamesToClients.put(desiredNickname, clientThread); // neuen Namen anmelden
-            String formerNickname = clientThread.getNickname();
+            final String formerNickname = clientThread.getNickname();
             nicknamesToClients.remove(formerNickname); // alten Namen entfernen
             clientThread.setNickname(desiredNickname);
             notifyClients(formerNickname + " renamed to " + desiredNickname);
@@ -265,7 +278,7 @@ public class TCPServer {
     // TODO Zugriffe auf Thread-List synchronisieren --> Zugriffe auf Liste kapseln mit einer synchronized Methode
     public synchronized String getUserlist() {
         String result = "";
-        for (String client : nicknamesToClients.keySet()) {
+        for (final String client : nicknamesToClients.keySet()) {
             result += client + '\n';
         }
         return result;
@@ -304,9 +317,9 @@ class ClientThread extends Thread {
         * Arbeitsthread, der eine existierende Socket-Verbindung zur Bearbeitung
         * erhaelt
         */
-    private int name;
-    private Socket socket;
-    private TCPServer server;
+    private final int name;
+    private final Socket socket;
+    private final TCPServer server;
     private String nickname;
     private BufferedReader inFromClient;
     private DataOutputStream outToClient;
@@ -328,11 +341,21 @@ class ClientThread extends Thread {
         isAuthorized = false;
     }
 
-    private void log(String message) {
+    public void shutDown() {
+		try {
+			this.socket.close();
+		} catch (final IOException e) {
+			e.printStackTrace();
+		}
+		this.stop();
+	}
+
+	private void log(String message) {
         System.err.println(++logcount + ": " + message);
     }
 
-    public void run() {
+    @Override
+	public void run() {
 
         try {
             /* Socket-Basisstreams durch spezielle Streams filtern */
@@ -351,11 +374,11 @@ class ClientThread extends Thread {
             /** HAUPTSCHLEIFE **/
             while (clientServiceRequested) {
             /* Eingehende Nachricht vom Client einlesen und verarbeiten */
-                String inMessage = readFromClient();
+                final String inMessage = readFromClient();
                 String commandString = "";
                 String outMessage = "";
 
-                Scanner s = new Scanner(inMessage).useDelimiter(" ");
+                final Scanner s = new Scanner(inMessage).useDelimiter(" ");
 
                 if (isCommand(inMessage)) {
                     commandString += s.next();
@@ -368,7 +391,7 @@ class ClientThread extends Thread {
                             server.notifyClients(outMessage, this);
                         } else if (isCommand("w", commandString)) {
                             if (s.hasNext()) {
-                                String recipient = s.next();
+                                final String recipient = s.next();
                                 outMessage = inMessage.substring((commandString + recipient).length() + 1);
                                 server.whisperToClient(outMessage, this, recipient);
                             } else {
@@ -376,7 +399,7 @@ class ClientThread extends Thread {
                             }
                         } else if (isCommand("poke", commandString)) {
                             if (s.hasNext()) {
-                                String recipient = s.next();
+                                final String recipient = s.next();
                                 server.pokeClient(this, recipient);
                             } else {
                                 writeErrorMessageToClient("Recipient missing. /poke <recipient nickname>");
@@ -446,7 +469,7 @@ class ClientThread extends Thread {
 
             /* Socket-Streams schliessen --> Verbindungsabbau */
             socket.close();
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.err.println("Connection aborted by client!");
         } finally {
             System.out.println("TCP Worker Thread " + name + " stopped!");
@@ -455,13 +478,15 @@ class ClientThread extends Thread {
         server.removeUser(this);
     }
 
+    /** OPERATIONS **/
+    
     /**
      * Liest eingehende Zeichen aus dem Puffer
      * @return Eingelesene Zeichenkette aus dem Puffer
      * @throws IOException
      */
     private String readFromClient() throws IOException {
-        String request = inFromClient.readLine();
+        final String request = inFromClient.readLine();
         return request;
     }
 
@@ -472,7 +497,7 @@ class ClientThread extends Thread {
      */
     public void writeToClient(String outMessage) throws IOException {
         /* Sende den String als Antwortzeile (mit CRLF) zum Client */
-        String out = outMessage + '\r' + '\n';
+        final String out = outMessage + '\r' + '\n';
         outToClient.writeBytes(out);
         System.out.println(out);
     }
@@ -515,6 +540,14 @@ class ClientThread extends Thread {
     private boolean isCommand(String command, String inMessage) {
         return inMessage.toLowerCase().startsWith("/" + command.toLowerCase());
     }
+    
+    /**
+     * Gibt an, ob der Client bereits authorisiert ist am Chat teilzunehmen
+     * @return true, falls Client authorisiert ist
+     */
+    public boolean isAuthorized() {
+        return isAuthorized;
+    }
 
     /** GETTER & SETTER **/
 
@@ -525,14 +558,5 @@ class ClientThread extends Thread {
     public String getNickname() {
         return nickname;
     }
-
-    /** OPERATIONS **/
-
-    /**
-     * Gibt an, ob der Client bereits authorisiert ist am Chat teilzunehmen
-     * @return true, falls Client authorisiert ist
-     */
-    public boolean isAuthorized() {
-        return isAuthorized;
-    }
+    
 }
