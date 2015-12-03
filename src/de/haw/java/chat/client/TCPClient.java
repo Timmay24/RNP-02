@@ -13,7 +13,6 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
-import java.net.UnknownHostException;
 
 public class TCPClient {
     private static final String VERSION = "Chat-0.0.1";
@@ -89,7 +88,7 @@ public class TCPClient {
     public void writeToServer(String request) {
         /* Sende eine Zeile (mit CRLF) zum Server */
         try {
-			outToServer.writeBytes(request.replace("\n", "") + '\r' + '\n');
+			outToServer.write((request.replace("\n", "") + '\r' + '\n').getBytes("utf-8"));
             // needed replace("\n", "") since multiple \n in one sequence causes BufferedReader#readLine
             // to start over processing the next line which will be empty and therefore would lead into
             // causing /ERR_MALFORMED_CMD
